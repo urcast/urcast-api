@@ -1,0 +1,34 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+  <h1 class="page-title mb-0">{{ title }}</h1>
+  <span class="badge sensor-count-badge">
+    {{ readings | length }} reading{{ 's' if readings | length != 1 }}
+  </span>
+</div>
+
+{% if readings %}
+<div class="sensor-grid">
+  {% for reading in readings %}
+  <a class="sensor-card"
+     href="{{ url_for("sensor_reading", sensor_reading_id=reading.id) }}"
+     aria-label="View details for {{ reading.sensor }} reading #{{ reading.id }}">
+    <div class="sensor-card-heading">
+      <span class="sensor-name">{{ reading.sensor }}</span>
+      <span class="sensor-timestamp">{{ reading.date_timestamp }}</span>
+    </div>
+    <div class="sensor-value">
+      {{ reading.content }}
+    </div>
+    <span class="sensor-card-footer">
+      View details →
+    </span>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="content-section p-4 text-center">
+  <p class="text-body-secondary mb-0">No sensor readings available yet.</p>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,11 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="error-page text-center pt-5">
+  <p class="error-code">{{ status_code }}</p>
+  <h1 class="error-title mb-3">{{ error_title }}</h1>
+  <p class="text-body-secondary error-message mb-4">
+    {{ message if message else "Something went wrong. Please try again." }}
+  </p>
+  <a class="btn btn-primary" href="{{ url_for("home") }}">← Back to Home</a>
+</div>
+{% endblock %}
