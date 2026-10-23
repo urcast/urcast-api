@@ -12,7 +12,7 @@ router = APIRouter()
 @router.get("/", include_in_schema=False, name="home")
 @router.get("/sensor_readings", include_in_schema=False, name="sensor_readings")
 def home(request: Request, db: Session = Depends(get_db)):
-    readings = db.scalars(select(WeatherReading).order_by(WeatherReading.id)).all()
+    readings = db.scalars(select(WeatherReading).order_by(WeatherReading.reading_id)).all()
     return templates.TemplateResponse(
         request,
         "home.html",
