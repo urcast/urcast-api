@@ -1,35 +1,21 @@
 from contextlib import asynccontextmanager
-from datetime import datetime
 from pathlib import Path
-
 from fastapi import FastAPI, Request, HTTPException, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import select
 from starlette.exceptions import HTTPException as StarletteHTTPException
-
 from api.routes import router as api_router
-from database import Base, SessionLocal, engine
+from database import Base, engine
 from frontend.routes import error_response, router as frontend_router
-from models import SensorReading
+import models
 
 BASE_DIR = Path(__file__).resolve().parent
 
-INITIAL_READINGS = [
-    {"sensor": "temp", "content": 21.0, "date_timestamp": datetime(2026, 9, 24, 11, 30)},
-    {"sensor": "lux", "content": 100.0, "date_timestamp": datetime(2026, 9, 24, 11, 33)},
-]
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Initialise the SQL database: create tables and seed sample data if empty.
+    # Create database tables if they do not already exist.
     Base.metadata.create_all(bind=engine)
-    with SessionLocal() as db:
-        if db.scalars(select(SensorReading)).first() is None:
-            db.add_all(SensorReading(**reading) for reading in INITIAL_READINGS)
-            db.commit()
     yield
 
 

@@ -2,34 +2,46 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from api.schemas import SensorReadingCreate
+from api.schemas import WeatherReadingCreate, WeatherReadingResponse
 from database import get_db
-from models import SensorReading
+from models import WeatherReading, Node
 
-router = APIRouter(prefix="/api", tags=["sensor-readings"])
-
-
-@router.get("/sensor_readings")
-def get_sensor_readings(db: Session = Depends(get_db)):
-    readings = db.scalars(select(SensorReading).order_by(SensorReading.id)).all()
-    return [reading.to_dict() for reading in readings]
+router = APIRouter(prefix="/api", tags=["weather-readings"])
 
 
-@router.post("/sensor_readings", status_code=status.HTTP_201_CREATED)
-def create_sensor_reading(reading: SensorReadingCreate, db: Session = Depends(get_db)):
-    sensor_reading = SensorReading(sensor=reading.sensor, content=reading.content)
-    db.add(sensor_reading)
-    db.commit()
-    db.refresh(sensor_reading)
-    return sensor_reading.to_dict()
+@router.get("/weather_readings", response_model=list[WeatherReadingResponse])
+def get_weather_readings(db: Session = Depends(get_db)):
+    readings = db.scalars(select(WeatherReading).order_by(WeatherReading.reading_id)).all()
+    return readings
 
 
-@router.get("/sensor_reading/{sensor_reading_id}")
-def get_sensor_reading(sensor_reading_id: int, db: Session = Depends(get_db)):
-    sensor_reading = db.get(SensorReading, sensor_reading_id)
-    if sensor_reading is None:
+@router.post("/weather_readings", response_model=WeatherReadingResponse,
+             status_code=status.HTTP_201_CREATED)
+def create_weather_reading(reading: WeatherReadingCreate, db: Session = Depends(get_db)):
+    node = db.get(Node, reading.node_id)
+    if node is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="This sensor reading was not found.",
+            detail="Node not found."
         )
-    return sensor_reading.to_dict()
+    weather_reading = WeatherReading(
+        node_id=reading.node_id,
+        temperature=reading.temperature,
+        humidity=reading.humidity,
+        pressure=reading.pressure,
+        light_level=reading.light_level
+    )
+    db.add(weather_reading)
+    db.commit()
+    db.refresh(weather_reading)
+    return weather_reading
+
+@router.get("/weather_reading/{reading_id}", response_model=WeatherReadingResponse)
+def get_weather_reading(reading_id: int, db: Session = Depends(get_db)):
+    reading = db.get(WeatherReading, reading_id)
+    if reading is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Weather reading not found."
+        )
+    return reading

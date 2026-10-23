@@ -3,29 +3,43 @@
 <a class="back-link" href="{{ url_for("home") }}">← Back to all readings</a>
 
 <div class="content-section sensor-detail p-4 p-md-5 mb-4">
-  <h1 class="sensor-detail-title mb-1">{{ sensor_reading.sensor }}</h1>
+  <h1 class="sensor-detail-title mb-1">
+    Node {{ sensor_reading.node_id }}
+  </h1>
 
   <div class="sensor-value-lg">
-    {{ sensor_reading.content }}
+    {{ sensor_reading.temperature }}°C
   </div>
 
-  <h2 class="sensor-detail-subtitle">Reading details</h2>
+  <h2 class="sensor-detail-subtitle">Weather Reading details</h2>
   <ul class="list-group list-group-flush sensor-detail-list">
     <li class="list-group-item">
       <span class="sensor-detail-label">Reading ID</span>
-      <span>#{{ sensor_reading.id }}</span>
+      <span>#{{ sensor_reading.reading_id }}</span>
     </li>
     <li class="list-group-item">
-      <span class="sensor-detail-label">Sensor</span>
-      <span>{{ sensor_reading.sensor }}</span>
+      <span class="sensor-detail-label">Node ID</span>
+      <span>{{ sensor_reading.node_id }}</span>
     </li>
     <li class="list-group-item">
-      <span class="sensor-detail-label">Value</span>
-      <span>{{ sensor_reading.content }}</span>
+      <span class="sensor-detail-label">Temperature</span>
+      <span>{{ sensor_reading.temperature }}</span>
     </li>
     <li class="list-group-item">
-      <span class="sensor-detail-label">Recorded at</span>
-      <span>{{ sensor_reading.date_timestamp }}</span>
+      <span class="sensor-detail-label">Humidity</span>
+      <span>{{ sensor_reading.humidity }}%</span>
+    </li>
+    <li class="list-group-item">
+      <span class="sensor-detail-label">Pressure</span>
+      <span>{{ sensor_reading.pressure }} hPa</span>
+    </li>
+    <li class="list-group-item">
+      <span class="sensor-detail-label">Light Level</span>
+      <span>{{ sensor_reading.light_level }} lux</span>
+    </li>
+    <li class="list-group-item">
+      <span class="sensor-detail-label">Recorded At</span>
+      <span>{{ sensor_reading.recorded_at }}</span>
     </li>
   </ul>
 </div>

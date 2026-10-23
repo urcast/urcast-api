@@ -11,14 +11,22 @@
 <div class="sensor-grid">
   {% for reading in readings %}
   <a class="sensor-card"
-     href="{{ url_for("sensor_reading", sensor_reading_id=reading.id) }}"
-     aria-label="View details for {{ reading.sensor }} reading #{{ reading.id }}">
+     href="{{ url_for('sensor_reading', sensor_reading_id=reading.reading_id) }}">
     <div class="sensor-card-heading">
-      <span class="sensor-name">{{ reading.sensor }}</span>
-      <span class="sensor-timestamp">{{ reading.date_timestamp }}</span>
+      <span class="sensor-name">Node {{ reading.node_id }}</span>
+      <span class="sensor-timestamp">{{ reading.recorded_at }}</span>
     </div>
     <div class="sensor-value">
-      {{ reading.content }}
+      {{ reading.temperature }}°C
+    </div>
+    <div>
+      Humidity: {{ reading.humidity }}%
+    </div>
+    <div>
+      Pressure: {{ reading.pressure }} hPa
+    </div>
+    <div>
+      Light: {{ reading.light_level }} lux
     </div>
     <span class="sensor-card-footer">
       View details →
@@ -28,7 +36,7 @@
 </div>
 {% else %}
 <div class="content-section p-4 text-center">
-  <p class="text-body-secondary mb-0">No sensor readings available yet.</p>
+  <p class="text-body-secondary mb-0">No weather readings available yet.</p>
 </div>
 {% endif %}
 {% endblock %}

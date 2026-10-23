@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from frontend.templates import templates
-from models import SensorReading
+from models import WeatherReading
 
 router = APIRouter()
 
@@ -12,26 +12,26 @@ router = APIRouter()
 @router.get("/", include_in_schema=False, name="home")
 @router.get("/sensor_readings", include_in_schema=False, name="sensor_readings")
 def home(request: Request, db: Session = Depends(get_db)):
-    readings = db.scalars(select(SensorReading).order_by(SensorReading.id)).all()
+    readings = db.scalars(select(WeatherReading).order_by(WeatherReading.id)).all()
     return templates.TemplateResponse(
         request,
         "home.html",
-        {"readings": [reading.to_dict() for reading in readings], "title": "Sensor Readings"},
+        {"readings": readings, "title": "Weather Readings"},
     )
 
 
 @router.get("/sensor_reading/{sensor_reading_id}", include_in_schema=False, name="sensor_reading")
 def sensor_reading_page(request: Request, sensor_reading_id: int, db: Session = Depends(get_db)):
-    sensor_reading = db.get(SensorReading, sensor_reading_id)
+    sensor_reading = db.get(WeatherReading, sensor_reading_id)
     if sensor_reading is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="This sensor reading was not found.",
+            detail="This weather reading was not found.",
         )
     return templates.TemplateResponse(
         request,
         "sensor_reading.html",
-        {"sensor_reading": sensor_reading.to_dict(), "title": sensor_reading.sensor[:50]},
+        {"sensor_reading": sensor_reading, "title": f"Node{sensor_reading.node_id}"},
     )
 
 
