@@ -12,7 +12,7 @@ venv/
 env/
 
 # uv
-# (uv.lock is committed)
+uv.lock
 
 # Databases
 *.db
@@ -45,3 +45,4 @@ Thumbs.db
 
 # Kilo
 .kilo/
+
