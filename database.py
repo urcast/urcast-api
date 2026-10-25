@@ -1,30 +1,24 @@
 import os
-from collections.abc import Generator
-from pathlib import Path
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-BASE_DIR = Path(__file__).resolve().parent
-
-DATABASE_URL = os.getenv(
-    "DATABASE_URL", f"sqlite:///{BASE_DIR / 'sensor_readings.db'}"
+SQLALCHEMY_DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "mysql+pymysql://root:password@localhost:3306/urcast_db",
 )
 
-connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    pool_pre_ping=True,
+    pool_recycle=3600,
+)
 
-engine = create_engine(DATABASE_URL, connect_args=connect_args)
-
-SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
-
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 class Base(DeclarativeBase):
     pass
 
-
-def get_db() -> Generator[Session, None, None]:
-    db = SessionLocal()
-    try:
+def get_db():
+    with SessionLocal() as db:
         yield db
-    finally:
-        db.close()
