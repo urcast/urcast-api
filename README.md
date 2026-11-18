@@ -83,42 +83,70 @@ Testing: The scheduled backup was verified on 1 November 2026 at 00:00 UTC. The 
 
 ### Prerequisites
 
-* Python 3.10 or higher installed on your system.
-* A running MySQL or MariaDB database instance.
+* Docker with Compose (recommended), or Python 3.14+ with [uv](https://docs.astral.sh/uv/) for local development.
+* A MySQL or MariaDB database and a Mosquitto broker, unless you use Docker Compose.
 
-### Setup Instructions
+### Option 1: Docker Compose (recommended)
 
-1. Clone the repository:
+One command starts MariaDB, the API and Mosquitto. The schema in `database/schema.sql` is applied automatically the first time the database volume is created.
+
 ```bash
 git clone https://github.com/urcast/urcast-api.git
 cd urcast-api
-
+docker compose up -d --build
 ```
 
+* Dashboard: `http://localhost:8000/`
+* API docs: `http://localhost:8000/docs`
+* Health check: `http://localhost:8000/health`
+* MQTT broker: `localhost:1883` (for the weather nodes)
 
-2. Create and activate a virtual environment:
+The stack runs with local defaults, so no `.env` is required to try it. For anything beyond a local demo, create a `.env` file first (Compose reads it automatically) and set:
+
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Windows use: venv\Scripts\activate
-
+SECRET_KEY=<long random string>
+MARIADB_PASSWORD=<database password>
+MARIADB_ROOT_PASSWORD=<root password>
 ```
 
+`DATABASE_URL` and `MQTT_BROKER` are wired to the `db` and `mqtt` services inside Compose, so they do not need to be set for the container.
 
-3. Install dependencies:
+Useful commands:
+
 ```bash
-pip install -r requirements.txt
-
+docker compose ps                 # service status and health
+docker compose logs -f api        # follow API and MQTT listener logs
+docker compose down               # stop the stack, keep database data
+docker compose down -v            # stop and delete the database volume
 ```
 
+The API container runs the production server (`fastapi run`) from a prebuilt virtual environment, not a bind-mounted dev server.
 
-4. Configure your environment variables. Create a `.env` file in the root directory:
+### Option 2: Local development
 
+Install the dependencies with uv:
 
-5. Initialize tables via SQLAlchemy or run database migrations.
-6. Start the development server using Uvicorn:
 ```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uv sync
+```
 
+Create `.env` in the project root:
+
+| Variable | Description |
+|---|---|
+| `DATABASE_URL` | SQLAlchemy connection string, e.g. `mysql+pymysql://root:password@localhost:3306/urcast_db`. |
+| `SECRET_KEY` | Long random string used to sign the login tokens. |
+| `MQTT_BROKER` | Hostname of the Mosquitto broker. |
+| `MQTT_PORT` | Broker port, `1883` by default, `8883` for TLS. |
+| `MQTT_TLS` | Set to `true` to connect to the broker over TLS. |
+| `MQTT_CA_FILE` | CA bundle used to verify the broker certificate. |
+| `MARIADB_PASSWORD` | Docker Compose only: password for the `urcast` database user. |
+| `MARIADB_ROOT_PASSWORD` | Docker Compose only: MariaDB root password. |
+
+Then start the development server:
+
+```bash
+uv run fastapi dev main.py --host 0.0.0.0 --port 8000
 ```
 
 
