@@ -31,6 +31,7 @@ services:
     build: .
     restart: unless-stopped
     environment:
+      FORWARDED_ALLOW_IPS: "*"
       DATABASE_URL: mysql+pymysql://urcast:${MARIADB_PASSWORD:-urcast}@db:3306/urcast_db
       SECRET_KEY: ${SECRET_KEY:-dev-secret-change-me}
       MQTT_BROKER: mqtt
