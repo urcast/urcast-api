@@ -38,12 +38,13 @@ The urcast API acts as the central communication bridge between the outdoor Rasp
 
 ## Technology Stack
 
-* **Language:** Python 3.10+
+* **Language:** Python 3.14+
 * **Framework:** FastAPI
 * **Data Validation:** Pydantic
 * **ORM:** SQLAlchemy
 * **Database:** MySQL / MariaDB
 * **Telemetry:** MQTT (Mosquitto broker, paho-mqtt client)
+* **Containers:** Docker and Docker Compose (multi-stage image, non-root runtime)
 * **Testing:** Pytest and HTTPX
 * **Version Control:** Git and GitHub
 
@@ -83,42 +84,89 @@ Testing: The scheduled backup was verified on 1 November 2026 at 00:00 UTC. The 
 
 ### Prerequisites
 
-* Python 3.10 or higher installed on your system.
-* A running MySQL or MariaDB database instance.
+* Docker with Compose (recommended), or Python 3.14+ with [uv](https://docs.astral.sh/uv/) for local development.
+* A MySQL or MariaDB database and a Mosquitto broker, unless you use Docker Compose.
 
-### Setup Instructions
+### Option 1: Docker Compose (recommended)
 
-1. Clone the repository:
+One command starts MariaDB, the API and Mosquitto. The schema in `database/schema.sql` is applied automatically the first time the database volume is created.
+
 ```bash
 git clone https://github.com/urcast/urcast-api.git
 cd urcast-api
-
+docker compose up -d --build
 ```
 
+* Dashboard: `http://localhost:8000/`
+* API docs: `http://localhost:8000/docs`
+* Health check: `http://localhost:8000/health`
+* MQTT broker: `localhost:1883` (for the weather nodes)
 
-2. Create and activate a virtual environment:
+The stack runs with local defaults, so no `.env` is required to try it. For anything beyond a local demo, create a `.env` file first (Compose reads it automatically) and set:
+
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Windows use: venv\Scripts\activate
-
+SECRET_KEY=<long random string>
+MARIADB_PASSWORD=<database password>
+MARIADB_ROOT_PASSWORD=<root password>
 ```
 
+`DATABASE_URL` and `MQTT_BROKER` are wired to the `db` and `mqtt` services inside Compose, so they do not need to be set for the container.
 
-3. Install dependencies:
+Useful commands:
+
 ```bash
-pip install -r requirements.txt
-
+docker compose ps                 # service status and health
+docker compose logs -f api        # follow API and MQTT listener logs
+docker compose down               # stop the stack, keep database data
+docker compose down -v            # stop and delete the database volume
 ```
 
+The API container runs the production server (`fastapi run`) from a prebuilt virtual environment, not a bind-mounted dev server. The image is built with a multi-stage Dockerfile (uv copied from its official image, dependencies resolved from the committed `uv.lock`) and runs as a non-root user; `.dockerignore` keeps local files and caches out of the build context.
 
-4. Configure your environment variables. Create a `.env` file in the root directory:
+### Production deployment (self-hosted database and broker)
 
+The `db` and `mqtt` services in `docker-compose.yml` are for local development only. In production the MariaDB database and the Mosquitto broker are self-hosted on the server (the database is backed up by the cron job), so neither runs in Docker. `docker-compose.prod.yml` starts only the API and reaches the database and broker through the Docker host gateway:
 
-5. Initialize tables via SQLAlchemy or run database migrations.
-6. Start the development server using Uvicorn:
 ```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+cp .env.example .env   # set DATABASE_URL, SECRET_KEY and the MQTT_* values
+docker compose -f docker-compose.prod.yml up -d --build
+```
 
+`DATABASE_URL` and `SECRET_KEY` are required by the prod file, so Compose fails fast if either is missing. Both the database and the broker are reached via `host.docker.internal`, which the prod file maps to the host gateway so this also works on Linux:
+
+```bash
+DATABASE_URL=mysql+pymysql://urcast:<password>@host.docker.internal:3306/urcast_db
+MQTT_BROKER=host.docker.internal
+```
+
+Because the broker runs on the host, the container connects to the plain `1883` listener by default - that traffic stays on the machine, so plain text is fine. To use the TLS listener instead, set `MQTT_TLS=true`, `MQTT_PORT=8883` and `MQTT_BROKER` to the hostname on the certificate (`mqtt.pjmisev.com`), since the certificate is verified against that hostname.
+
+### Option 2: Local development
+
+Install the dependencies with uv:
+
+```bash
+uv sync
+```
+
+Create `.env` in the project root:
+
+| Variable | Description |
+|---|---|
+| `DATABASE_URL` | SQLAlchemy connection string, e.g. `mysql+pymysql://root:password@localhost:3306/urcast_db`. |
+| `SECRET_KEY` | Long random string used to sign the login tokens. |
+| `MQTT_BROKER` | Hostname of the Mosquitto broker. |
+| `MQTT_PORT` | Broker port, `1883` by default, `8883` for TLS. |
+| `MQTT_TLS` | Set to `true` to connect to the broker over TLS. |
+| `MQTT_CA_FILE` | CA bundle used to verify the broker certificate. |
+| `FORWARDED_ALLOW_IPS` | Trusted proxy IPs for forwarded headers, set to `*` by the compose files when behind a reverse proxy. |
+| `MARIADB_PASSWORD` | Docker Compose only: password for the `urcast` database user. |
+| `MARIADB_ROOT_PASSWORD` | Docker Compose only: MariaDB root password. |
+
+Then start the development server:
+
+```bash
+uv run fastapi dev main.py --host 0.0.0.0 --port 8000
 ```
 
 
@@ -131,6 +179,7 @@ Once the server is running, interactive documentation is automatically generated
 
 * **Swagger UI:** `http://localhost:8000/docs`
 * **ReDoc:** `http://localhost:8000/redoc`
+* **Health:** `http://localhost:8000/health` returns `{"status": "ok"}` and backs the Compose healthcheck.
 
 ---
 
@@ -283,7 +332,8 @@ Full walkthrough from nothing to a node streaming data:
 
 1. **Start the backend stack** (database, api and broker):
 ```bash
-docker compose up -d
+docker compose up -d                         # local dev: MariaDB + broker run in Docker
+docker compose -f docker-compose.prod.yml up -d   # prod: api only, db and broker self-hosted
 ```
 2. **Create a user and log in** to get the JWT the node will use:
 ```bash
@@ -315,7 +365,7 @@ python combinedTest.py
 ```
 Every 3 seconds a sample is printed to the terminal and published to the broker; the api stores it and the node shows up as `active` at `GET /api/node/{node_id}`.
 
-The broker runs in docker compose (`docker compose up mqtt`), or on a separate machine with `mosquitto -c mosquitto.conf`. The broker currently allows anonymous connections - anyone on the network can publish, which is why every message is still checked against the node owner's JWT by the backend.
+The broker runs in docker compose for local development (`docker compose up mqtt`), and in production it is self-hosted on the server (see the production deployment and MQTT over TLS sections). The broker currently allows anonymous connections - anyone on the network can publish, which is why every message is still checked against the node owner's JWT by the backend.
 
 ### MQTT over TLS
 
@@ -364,6 +414,7 @@ Port 1883 stays as a fallback for the backend listener on the same machine (that
 * **Node not registered** - messages for a node id that doesn't exist are ignored (`node <id> does not exist`). Run `register_node.py` first.
 * **Wrong node id** - make sure `NODE_ID` in `mqtt_client.py` matches the id returned by `register_node.py`, otherwise the api can't find the node.
 * **Broker unreachable** - if the Pi can't reach the broker, `mqtt_client.py` prints `could not send ... (no connection to broker)` and keeps the sensor loop running; data resumes once the broker is back.
+* **API started before the broker** - the backend retries the broker connection every 5 seconds until it is reachable, so it is safe for the API to come up before the broker (for example when the api container starts first). The log shows `connected to mqtt broker ...` once it attaches.
 * **TLS certificate errors** - if the backend or node prints a certificate verification error, the broker was probably restarted after a cert renewal with stale files in `/etc/mosquitto/certs`, or the connection is going to `localhost`/an IP instead of the hostname on the cert.
 
 ### Verifying it works
