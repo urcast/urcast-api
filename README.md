@@ -125,21 +125,74 @@ The API container runs the production server (`fastapi run`) from a prebuilt vir
 
 ### Production deployment (self-hosted database and broker)
 
-The `db` and `mqtt` services in `docker-compose.yml` are for local development only. In production the MariaDB database and the Mosquitto broker are self-hosted on the server (the database is backed up by the cron job), so neither runs in Docker. `docker-compose.prod.yml` starts only the API and reaches the database and broker through the Docker host gateway:
+The `db` and `mqtt` services in `docker-compose.yml` are for local development only. In production the MariaDB database and the Mosquitto broker are self-hosted on the server (the database is backed up by the cron job), so neither runs in Docker. `docker-compose.prod.yml` starts only the API container and reaches the database and broker through the Docker host gateway.
+
+**Prerequisites (on the server):**
+
+* Docker Engine and the Docker Compose plugin installed.
+* The self-hosted MariaDB running and reachable from the container over the host gateway (listening on `0.0.0.0` or the docker bridge, not just `127.0.0.1`), with `database/schema.sql` applied.
+* The self-hosted Mosquitto broker running (plain `1883`, or the TLS `8883` listener - see MQTT over TLS).
+* Port `8000` is bound to localhost only, so a reverse proxy (nginx/Caddy) should terminate TLS on `443` and forward to `127.0.0.1:8000` for the Android client and dashboard.
+
+**1. Get the code:**
 
 ```bash
-cp .env.example .env   # set DATABASE_URL, SECRET_KEY and the MQTT_* values
+git clone https://github.com/urcast/urcast-api.git
+cd urcast-api
+git pull            # on later deploys
+```
+
+**2. Create `.env`** (Compose reads it automatically):
+
+```bash
+cp .env.example .env
+```
+
+Set at least:
+
+```bash
+DATABASE_URL=mysql+pymysql://urcast:<db-password>@host.docker.internal:3306/urcast_db
+SECRET_KEY=<long random string>
+MQTT_BROKER=host.docker.internal   # or mqtt.pjmisev.com when using TLS
+MQTT_PORT=1883                     # 8883 with MQTT_TLS=true for TLS
+MQTT_TLS=false
+MQTT_CA_FILE=/etc/ssl/certs/ca-certificates.crt
+```
+
+`DATABASE_URL` and `SECRET_KEY` are required by the prod file, so Compose fails fast if either is missing.
+
+**3. Build and start the container:**
+
+```bash
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-`DATABASE_URL` and `SECRET_KEY` are required by the prod file, so Compose fails fast if either is missing. Both the database and the broker are reached via `host.docker.internal`, which the prod file maps to the host gateway so this also works on Linux:
+**4. Check it is up:**
 
 ```bash
-DATABASE_URL=mysql+pymysql://urcast:<password>@host.docker.internal:3306/urcast_db
-MQTT_BROKER=host.docker.internal
+docker compose -f docker-compose.prod.yml ps          # api should be healthy
+curl -s http://localhost:8000/health                  # {"status":"ok"}
+docker compose -f docker-compose.prod.yml logs -f api # follow the logs, Ctrl-C to stop
 ```
 
-Because the broker runs on the host, the container connects to the plain `1883` listener by default - that traffic stays on the machine, so plain text is fine. To use the TLS listener instead, set `MQTT_TLS=true`, `MQTT_PORT=8883` and `MQTT_BROKER` to the hostname on the certificate (`mqtt.pjmisev.com`), since the certificate is verified against that hostname.
+The api log should show `connected to mqtt broker ...` once the listener attaches to the host broker.
+
+**5. Rebuild after a code update:**
+
+```bash
+git pull
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+Useful commands:
+
+```bash
+docker compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml logs -f api
+docker compose -f docker-compose.prod.yml down          # stop the container
+```
+
+Both the database and the broker are reached via `host.docker.internal`, which the prod file maps to the host gateway so this also works on Linux. Because the broker runs on the host, the container connects to the plain `1883` listener by default - that traffic stays on the machine, so plain text is fine. To use the TLS listener instead, set `MQTT_TLS=true`, `MQTT_PORT=8883` and `MQTT_BROKER` to the hostname on the certificate (`mqtt.pjmisev.com`), since the certificate is verified against that hostname.
 
 ### Option 2: Local development
 
