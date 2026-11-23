@@ -1,8 +1,12 @@
 name: urcast
 
 # Production stack: the database and the mqtt broker are self-hosted on the
-# server and are NOT run in Docker here. Only the api runs as a container and
-# reaches the self-hosted database and broker through the host gateway.
+# server and are NOT run in Docker here. Only the api runs as a container.
+#
+# The api uses host networking, so "localhost" inside the container is the host
+# and it reaches the self-hosted database and broker directly (no host gateway
+# or bind-address fiddling). It binds to 127.0.0.1 only, so a reverse proxy on
+# the host is what exposes it publicly.
 #
 #   docker compose -f docker-compose.prod.yml up -d --build
 #
@@ -13,20 +17,16 @@ services:
   api:
     build: .
     restart: unless-stopped
-    # lets the container reach the database and broker on the docker host
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    network_mode: host
+    command: uv run --no-sync fastapi run main.py --host 127.0.0.1 --port 8000
     environment:
       FORWARDED_ALLOW_IPS: "*"
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL to the self-hosted database}
       SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY}
-      # the broker runs on the host, so reach it through the host gateway
-      MQTT_BROKER: ${MQTT_BROKER:-host.docker.internal}
+      MQTT_BROKER: ${MQTT_BROKER:-localhost}
       MQTT_PORT: ${MQTT_PORT:-1883}
       MQTT_TLS: ${MQTT_TLS:-false}
       MQTT_CA_FILE: ${MQTT_CA_FILE:-/etc/ssl/certs/ca-certificates.crt}
-    ports:
-      - "127.0.0.1:8000:8000"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)"]
       interval: 15s
