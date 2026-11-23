@@ -161,13 +161,19 @@ MQTT_CA_FILE=/etc/ssl/certs/ca-certificates.crt
 
 `DATABASE_URL` and `SECRET_KEY` are required by the prod file, so Compose fails fast if either is missing.
 
-**3. Build and start the container:**
+**3. Build the image** (this builds only the api; MariaDB and Mosquitto are not involved in the build):
 
 ```bash
-docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml build
 ```
 
-**4. Check it is up:**
+**4. Start the container:**
+
+```bash
+docker compose -f docker-compose.prod.yml up -d
+```
+
+**5. Check it is up:**
 
 ```bash
 docker compose -f docker-compose.prod.yml ps          # api should be healthy
@@ -177,7 +183,7 @@ docker compose -f docker-compose.prod.yml logs -f api # follow the logs, Ctrl-C 
 
 The api log should show `connected to mqtt broker ...` once the listener attaches to the host broker.
 
-**5. Rebuild after a code update:**
+**6. Rebuild after a code update:**
 
 ```bash
 git pull
