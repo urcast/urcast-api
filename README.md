@@ -122,6 +122,23 @@ docker compose down -v            # stop and delete the database volume
 
 The API container runs the production server (`fastapi run`) from a prebuilt virtual environment, not a bind-mounted dev server.
 
+### Production deployment (self-hosted database)
+
+The `db` service in `docker-compose.yml` is for local development only. In production the database is self-hosted on the server (and backed up by the cron job), so it is not run in Docker. The `docker-compose.prod.yml` file starts only the API and the MQTT broker and takes `DATABASE_URL` from the environment:
+
+```bash
+cp .env.example .env   # set DATABASE_URL, SECRET_KEY and the MQTT_* values
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+`DATABASE_URL` and `SECRET_KEY` are required by the prod file, so Compose fails fast if either is missing.
+
+To reach a database listening on the Docker host, use `host.docker.internal` as the host; the prod file maps it to the host gateway so this also works on Linux:
+
+```bash
+DATABASE_URL=mysql+pymysql://urcast:<password>@host.docker.internal:3306/urcast_db
+```
+
 ### Option 2: Local development
 
 Install the dependencies with uv:

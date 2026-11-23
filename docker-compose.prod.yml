@@ -1,0 +1,45 @@
+name: urcast
+
+# Production stack: the database is self-hosted on the server and is NOT run in
+# Docker here. Only the api and the mqtt broker run as containers and the api
+# reads DATABASE_URL from the environment.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# For local development (with a MariaDB container) use docker-compose.yml.
+
+services:
+  mqtt:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    command: mosquitto -c /mosquitto/config/mosquitto.conf
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+
+  api:
+    build: .
+    restart: unless-stopped
+    # lets the container reach a database running on the docker host
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      FORWARDED_ALLOW_IPS: "*"
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL to the self-hosted database}
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY}
+      MQTT_BROKER: ${MQTT_BROKER:-mqtt}
+      MQTT_PORT: ${MQTT_PORT:-1883}
+      MQTT_TLS: ${MQTT_TLS:-false}
+      MQTT_CA_FILE: ${MQTT_CA_FILE:-/etc/ssl/certs/ca-certificates.crt}
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      mqtt:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
