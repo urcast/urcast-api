@@ -38,12 +38,13 @@ The urcast API acts as the central communication bridge between the outdoor Rasp
 
 ## Technology Stack
 
-* **Language:** Python 3.10+
+* **Language:** Python 3.14+
 * **Framework:** FastAPI
 * **Data Validation:** Pydantic
 * **ORM:** SQLAlchemy
 * **Database:** MySQL / MariaDB
 * **Telemetry:** MQTT (Mosquitto broker, paho-mqtt client)
+* **Containers:** Docker and Docker Compose (multi-stage image, non-root runtime)
 * **Testing:** Pytest and HTTPX
 * **Version Control:** Git and GitHub
 
@@ -120,7 +121,7 @@ docker compose down               # stop the stack, keep database data
 docker compose down -v            # stop and delete the database volume
 ```
 
-The API container runs the production server (`fastapi run`) from a prebuilt virtual environment, not a bind-mounted dev server.
+The API container runs the production server (`fastapi run`) from a prebuilt virtual environment, not a bind-mounted dev server. The image is built with a multi-stage Dockerfile (uv copied from its official image, dependencies resolved from the committed `uv.lock`) and runs as a non-root user; `.dockerignore` keeps local files and caches out of the build context.
 
 ### Production deployment (self-hosted database and broker)
 
@@ -158,6 +159,7 @@ Create `.env` in the project root:
 | `MQTT_PORT` | Broker port, `1883` by default, `8883` for TLS. |
 | `MQTT_TLS` | Set to `true` to connect to the broker over TLS. |
 | `MQTT_CA_FILE` | CA bundle used to verify the broker certificate. |
+| `FORWARDED_ALLOW_IPS` | Trusted proxy IPs for forwarded headers, set to `*` by the compose files when behind a reverse proxy. |
 | `MARIADB_PASSWORD` | Docker Compose only: password for the `urcast` database user. |
 | `MARIADB_ROOT_PASSWORD` | Docker Compose only: MariaDB root password. |
 
@@ -177,6 +179,7 @@ Once the server is running, interactive documentation is automatically generated
 
 * **Swagger UI:** `http://localhost:8000/docs`
 * **ReDoc:** `http://localhost:8000/redoc`
+* **Health:** `http://localhost:8000/health` returns `{"status": "ok"}` and backs the Compose healthcheck.
 
 ---
 
@@ -329,7 +332,8 @@ Full walkthrough from nothing to a node streaming data:
 
 1. **Start the backend stack** (database, api and broker):
 ```bash
-docker compose up -d
+docker compose up -d                         # local dev: MariaDB + broker run in Docker
+docker compose -f docker-compose.prod.yml up -d   # prod: api only, db and broker self-hosted
 ```
 2. **Create a user and log in** to get the JWT the node will use:
 ```bash
@@ -361,7 +365,7 @@ python combinedTest.py
 ```
 Every 3 seconds a sample is printed to the terminal and published to the broker; the api stores it and the node shows up as `active` at `GET /api/node/{node_id}`.
 
-The broker runs in docker compose (`docker compose up mqtt`), or on a separate machine with `mosquitto -c mosquitto.conf`. The broker currently allows anonymous connections - anyone on the network can publish, which is why every message is still checked against the node owner's JWT by the backend.
+The broker runs in docker compose for local development (`docker compose up mqtt`), and in production it is self-hosted on the server (see the production deployment and MQTT over TLS sections). The broker currently allows anonymous connections - anyone on the network can publish, which is why every message is still checked against the node owner's JWT by the backend.
 
 ### MQTT over TLS
 
@@ -410,6 +414,7 @@ Port 1883 stays as a fallback for the backend listener on the same machine (that
 * **Node not registered** - messages for a node id that doesn't exist are ignored (`node <id> does not exist`). Run `register_node.py` first.
 * **Wrong node id** - make sure `NODE_ID` in `mqtt_client.py` matches the id returned by `register_node.py`, otherwise the api can't find the node.
 * **Broker unreachable** - if the Pi can't reach the broker, `mqtt_client.py` prints `could not send ... (no connection to broker)` and keeps the sensor loop running; data resumes once the broker is back.
+* **API started before the broker** - the backend retries the broker connection every 5 seconds until it is reachable, so it is safe for the API to come up before the broker (for example when the api container starts first). The log shows `connected to mqtt broker ...` once it attaches.
 * **TLS certificate errors** - if the backend or node prints a certificate verification error, the broker was probably restarted after a cert renewal with stale files in `/etc/mosquitto/certs`, or the connection is going to `localhost`/an IP instead of the hostname on the cert.
 
 ### Verifying it works
