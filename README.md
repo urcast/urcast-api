@@ -30,7 +30,7 @@ The urcast API acts as the central communication bridge between the outdoor Rasp
 ## Security and Validation
 
 * **Data Validation:** Incoming payloads and user inputs are strictly validated using Pydantic models to reject malformed or invalid readings before touching the database.
-* **Authentication and Authorization:** Passwords are hashed with bcrypt and login is handled with token-based authentication using JSON Web Tokens (JWT), ensuring only authorized contributors can manage their registered nodes.
+* **Authentication and Authorization:** Passwords are hashed with Argon2id (via pwdlib) and login is handled with token-based authentication using JSON Web Tokens (JWT), ensuring only authorized contributors can manage their registered nodes.
 * **Database Isolation:** Direct database access is strictly restricted to authorized backend modules using SQLAlchemy ORM.
 * **MQTT Telemetry:** Sensor data travels over a Mosquitto MQTT broker. Every message payload must carry the node owner's JWT, so a node cannot publish readings for another user's node.
 
@@ -248,7 +248,7 @@ The API uses token based authentication. A user registers with an email and pass
 
 ### 1. Register
 
-Passwords are hashed with bcrypt before they are stored, so the plain text password never touches the database.
+Passwords are hashed with Argon2id (via pwdlib) before they are stored, so the plain text password never touches the database.
 
 ```bash
 curl -X POST http://localhost:8000/api/user \
@@ -288,8 +288,8 @@ Tip: you can also try this in the Swagger UI. Log in, copy the `access_token`, c
 
 ### How it works
 
-* **Registration (`POST /api/user`)** checks that the username and email are not already taken, hashes the password with bcrypt and stores the user with the default `user` role.
-* **Login (`POST /api/auth/login`)** looks the user up by email and checks the password against the stored bcrypt hash. Wrong credentials always return `401 Invalid email or password`, the same message for a wrong password and an unknown email.
+* **Registration (`POST /api/user`)** checks that the username and email are not already taken, hashes the password with Argon2id (via pwdlib) and stores the user with the default `user` role.
+* **Login (`POST /api/auth/login`)** looks the user up by email and checks the password against the stored Argon2id hash. Wrong credentials always return `401 Invalid email or password`, the same message for a wrong password and an unknown email.
 * **Token** is a JWT signed with the `SECRET_KEY` environment variable using HS256. It contains the user id (`sub`) and an expiry time (`exp`) 24 hours in the future. A missing, invalid or expired token returns `401 Invalid or expired token`.
 * **Protecting endpoints** is done with the `get_current_user` dependency from `auth.py`:
 
