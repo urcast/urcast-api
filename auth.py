@@ -2,10 +2,11 @@ import os
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
-import bcrypt
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pwdlib import PasswordHash, exceptions
+from pwdlib.hashers.argon2 import Argon2Hasher
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -18,15 +19,17 @@ TOKEN_EXPIRE_MINUTES = 60 * 24
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
+password_hasher = PasswordHash((Argon2Hasher(),))
+
 
 def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    return password_hasher.hash(password)
 
 
 def verify_password(password: str, password_hash: str) -> bool:
     try:
-        return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
-    except ValueError:
+        return password_hasher.verify(password, password_hash)
+    except (exceptions.UnknownHashError, exceptions.HashVerificationError):
         return False
 
 
